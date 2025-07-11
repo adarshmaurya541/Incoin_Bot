@@ -8,11 +8,11 @@ import pytz
 from datetime import datetime
 import asyncio
 import os
-
+import certifi
 # ----------------------------
 # MongoDB Setup
 # ----------------------------
-mongo_client = MongoClient(MONGO_URI)
+mongo_client=MongoClient(MONGO_URI)
 db = mongo_client[MONGO_DB_NAME]
 started_users = db["started_users"]
 logged_in_users = db["logged_in_users"]
