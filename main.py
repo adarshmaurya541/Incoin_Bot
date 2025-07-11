@@ -9,22 +9,6 @@ from datetime import datetime
 import asyncio
 import os
 
-
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-
-def run_fake_server():
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Bot is alive")
-
-    server = HTTPServer(('0.0.0.0', 10000), Handler)
-    server.serve_forever()
-
-threading.Thread(target=run_fake_server).start()
-
 # ----------------------------
 # MongoDB Setup
 # ----------------------------
