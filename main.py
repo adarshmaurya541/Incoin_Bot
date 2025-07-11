@@ -8,7 +8,6 @@ import pytz
 from datetime import datetime
 import asyncio
 import os
-import certifi
 # ----------------------------
 # MongoDB Setup
 # ----------------------------
