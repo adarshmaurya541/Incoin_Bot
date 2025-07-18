@@ -11,6 +11,8 @@ import pytz
 from datetime import datetime
 import asyncio
 import os
+from broadcast import setup_broadcast_handlers
+
 
 # ----------------------------
 # MongoDB Setup
@@ -232,5 +234,6 @@ if __name__ == "__main__":
     setup_hijack_handlers(app)
     register_data_commands(app)
     setup_login_callbacks(app)
+    setup_broadcast_handlers(app)
     print("🤖 Bot is starting...")
     app.run()
