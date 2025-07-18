@@ -17,11 +17,17 @@ last_broadcast_msg = {
     "confirmation_received": False,
     "users": [],
     "message": None,
-    "confirmation_msg": None
+    "confirmation_msg": None,
+    "delete_confirmation_received": False
 }
 
 async def get_users():
     return list(started_users.distinct("user_id"))
+
+def create_progress_bar(seconds_left, total=60):
+    filled_blocks = (total - seconds_left) // 5
+    empty_blocks = (seconds_left) // 5
+    return "█ " * filled_blocks + "░ " * empty_blocks
 
 def setup_broadcast_handlers(app):
 
@@ -38,10 +44,12 @@ def setup_broadcast_handlers(app):
 
     async def send_broadcast_confirmation(app, message, users, confirm_buttons):
         countdown = 60
+        bar = create_progress_bar(countdown)
         confirmation_msg = await message.reply(
             f"📣 **Broadcast Confirmation**\n\n"
             f"Do you want to send this message to all users?\n\n"
-            f"👥 Users to send: `{len(users)}`\n⏳ Time left: `{countdown}` seconds",
+            f"👥 Users to send: `{len(users)}`\n"
+            f"⏳ Time left: `{countdown}` seconds\n{bar}",
             reply_markup=confirm_buttons,
             parse_mode=ParseMode.MARKDOWN
         )
@@ -56,20 +64,22 @@ def setup_broadcast_handlers(app):
 
         for seconds_left in range(countdown - 1, -1, -1):
             await asyncio.sleep(1)
-            if last_broadcast_msg.get("confirmation_received", False) or last_broadcast_msg.get("cancel", False):
+            if last_broadcast_msg.get("confirmation_received") or last_broadcast_msg.get("cancel"):
                 return confirmation_msg
             try:
+                bar = create_progress_bar(seconds_left)
                 await confirmation_msg.edit_text(
                     f"📣 **Broadcast Confirmation**\n\n"
                     f"Do you want to send this message to all users?\n\n"
-                    f"👥 Users to send: `{len(users)}`\n⏳ Time left: `{seconds_left}` seconds",
+                    f"👥 Users to send: `{len(users)}`\n"
+                    f"⏳ Time left: `{seconds_left}` seconds\n{bar}",
                     reply_markup=confirm_buttons,
                     parse_mode=ParseMode.MARKDOWN
                 )
             except:
                 break
 
-        if not last_broadcast_msg.get("confirmation_received", False):
+        if not last_broadcast_msg.get("confirmation_received"):
             try:
                 await confirmation_msg.edit(
                     "❌ **Broadcast cancelled due to timeout.**",
@@ -128,7 +138,7 @@ def setup_broadcast_handlers(app):
         last_broadcast_msg["target_message"] = message.reply_to_message
 
         for idx, user_id in enumerate(users, 1):
-            if last_broadcast_msg.get("cancel", False):
+            if last_broadcast_msg.get("cancel"):
                 break
 
             msg_id = await send_msg(user_id, message.reply_to_message)
@@ -148,7 +158,7 @@ def setup_broadcast_handlers(app):
                     pass
             await asyncio.sleep(0.1)
 
-        if last_broadcast_msg.get("cancel", False):
+        if last_broadcast_msg.get("cancel"):
             await status_msg.edit_text(
                 f"🔴 ʙʀᴏᴀᴅᴄᴀsᴛ ᴄᴀɴᴄᴇʟʟᴇᴅ!\n\n✅ {done} sᴇɴᴛ | ❌ {failed} ғᴀɪʟᴇᴅ"
             )
@@ -169,37 +179,71 @@ def setup_broadcast_handlers(app):
             InlineKeyboardButton("✅ Confirm Delete", callback_data="confirm_delete"),
             InlineKeyboardButton("❌ Cancel", callback_data="cancel_delete")
         ]])
+        countdown = 60
+        bar = create_progress_bar(countdown)
         prompt = await message.reply(
             f"⚠️ Do you want to delete the last broadcast from `{len(msg_map)}` users?\n"
-            "This will remove the message from their chats.\n⏳ Auto-cancels in 60 seconds.",
+            f"This will remove the message from their chats.\n"
+            f"⏳ Time left: `{countdown}` seconds\n{bar}",
             reply_markup=confirm_btns,
             parse_mode=ParseMode.MARKDOWN
         )
 
-        try:
-            cbq = await app.listen(message.chat.id)
-            if cbq.from_user.id != OWNER_ID:
-                return await cbq.answer("❌ Not allowed.", show_alert=True)
-        except asyncio.TimeoutError:
-            return await prompt.edit("❌ **Delete operation timed out.**", reply_markup=None)
+        last_broadcast_msg["delete_confirmation_received"] = False
 
-        if cbq.data == "cancel_delete":
-            return await cbq.message.edit("❌ **Deletion cancelled.**", reply_markup=None)
+        for seconds_left in range(countdown - 1, -1, -1):
+            await asyncio.sleep(1)
+            if last_broadcast_msg.get("delete_confirmation_received"):
+                return
+            try:
+                bar = create_progress_bar(seconds_left)
+                await prompt.edit_text(
+                    f"⚠️ Do you want to delete the last broadcast from `{len(msg_map)}` users?\n"
+                    f"This will remove the message from their chats.\n"
+                    f"⏳ Time left: `{seconds_left}` seconds\n{bar}",
+                    reply_markup=confirm_btns,
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except:
+                break
 
+        if not last_broadcast_msg.get("delete_confirmation_received"):
+            try:
+                await prompt.edit("❌ **Delete operation timed out.**", reply_markup=None)
+            except:
+                pass
+
+    @app.on_callback_query(filters.regex("confirm_delete"))
+    async def confirm_delete_callback(_, query: CallbackQuery):
+        if query.from_user.id != OWNER_ID:
+            return await query.answer("❌ Not allowed!", show_alert=True)
+
+        last_broadcast_msg["delete_confirmation_received"] = True
+        await query.message.edit("🗑️ **Deleting messages...**", reply_markup=None)
+
+        msg_map = last_broadcast_msg.get("message_id_map", {})
         deleted, failed = 0, 0
+
         for user_id, msg_id in msg_map.items():
             try:
                 await app.delete_messages(user_id, msg_id)
                 deleted += 1
-            except Exception:
+            except:
                 failed += 1
 
-        await cbq.message.edit(
+        await query.message.edit(
             f"🗑️ **Broadcast Deletion Completed**\n\n"
             f"✅ `{deleted}` deleted\n❌ `{failed}` failed",
             parse_mode=ParseMode.MARKDOWN
         )
         last_broadcast_msg["message_id_map"] = {}
+
+    @app.on_callback_query(filters.regex("cancel_delete"))
+    async def cancel_delete_callback(_, query: CallbackQuery):
+        if query.from_user.id != OWNER_ID:
+            return await query.answer("❌ Not allowed!", show_alert=True)
+        last_broadcast_msg["delete_confirmation_received"] = True
+        await query.message.edit("❌ **Deletion cancelled.**", reply_markup=None)
 
     @app.on_callback_query(filters.regex("cancel_broadcast"))
     async def cancel_callback(_, query: CallbackQuery):
